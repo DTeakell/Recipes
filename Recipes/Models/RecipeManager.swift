@@ -59,10 +59,14 @@ final class RecipeManager {
             do {
                 // Decode JSON
                 let decoder = JSONDecoder()
-                let recipeResponse = try decoder.decode(RecipeResponse.self, from: data)
+                var recipeResponse = try decoder.decode(RecipeResponse.self, from: data)
                 
                 print("✅ Successfully decoded \(recipeResponse.recipes.count) recipes from API")
-
+                for i in 0..<recipeResponse.recipes.count {
+                     recipeResponse.recipes[i].name = recipeResponse.recipes[i].name
+                    .replacingOccurrences(of: "Å›", with: "ś")
+                    .replacingOccurrences(of: "Ã©", with: "é")
+                }
                 saveRecipesToFile(data)
                 
                 return recipeResponse.recipes
