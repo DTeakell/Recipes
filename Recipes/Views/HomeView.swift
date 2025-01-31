@@ -12,6 +12,7 @@ struct HomeView: View {
     // Recipes and recipe manager
     @State var recipes: [Recipe] = []
     let recipeManager = RecipeManager()
+    let imageManager = ImageManager()
     
     // Create a group of cuisine with the name of the cuisine and the recipes with the cuisine name
     var cuisines: [String : [Recipe]] {
@@ -26,93 +27,99 @@ struct HomeView: View {
     @State private var alertTitle: String = ""
     @State private var alertMessage: String = ""
     
+    @State private var isLoading: Bool = false
+    
     @MainActor
     var body: some View {
         NavigationStack {
             List {
                 ForEach(cuisines.keys.sorted(), id: \.self) { cuisine in
-                    Section(header: Text(cuisine)) {
+                    Section(header: Text(cuisine).textCase(.none).font(.headline)) {
                         ForEach(cuisines[cuisine] ?? []) { recipe in
                             HStack {
-                                AsyncImage(url: recipe.photoUrlSmall) { image in
-                                    image.image?.resizable()
-                                        .scaledToFill()
-                                        .frame(width: 50, height: 50)
-                                        .clipShape(Circle())
+                                if let url = recipe.photoUrlSmall {
+                                    if let cachedImage = imageManager.shared.loadImage(for: url) {
+                                        Image(uiImage: cachedImage)
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: 70, height: 70)
+                                            .clipShape(Circle())
+                                    }
                                 }
-                                Text(recipe.name)
+                                else {
+                                    AsyncImage(url: recipe.photoUrlSmall) { phase in
+                                        switch phase {
+                                            // Getting image
+                                        case .empty:
+                                            ProgressView()
+                                                .frame(width: 70, height: 70)
+                                            // Image retrieved
+                                        case .success(let image):
+                                            image.resizable()
+                                                .scaledToFit()
+                                                .frame(width: 70, height: 70)
+                                                .clipShape(Circle())
+                                            // Image failed
+                                        case .failure:
+                                            Image(systemName: "photo")
+                                                .resizable()
+                                                .scaledToFit()
+                                                .frame(width: 50, height: 50)
+                                        @unknown default:
+                                            EmptyView()
+                                        }
+                                    }
+                                }
+                                VStack (alignment: .leading) {
+                                    Text(recipe.name)
+                                        .font(.headline)
+                                    
+                                    HStack {
+                                        Image(systemName: "play.circle.fill")
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: 15,height: 15)
+                                        Link("View Recipe", destination: URL(string: "\(recipe.youtubeUrl ?? "")") ?? URL(filePath: "https://www.youtube.com/")!)
+                                    }
+                                    .foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }
                 }
             }
             .navigationTitle("Recipes")
-            .task {
-                do {
-                    recipes = try await recipeManager.getRecipes()
-                }
-                catch RecipeManagerError.invalidURL {
-                    isShowingAlert = true
-                    alertTitle = "Invalid URL"
-                    alertMessage = "Please check that the URL was entered correctly."
-                }
-                catch RecipeManagerError.invalidData {
-                    isShowingAlert = true
-                    alertTitle = "Invalid Data"
-                    alertMessage = "The data returned is invalid. Please check that the URL is returning valid data."
-                }
-                catch RecipeManagerError.badRequest {
-                    isShowingAlert = true
-                    alertTitle = "Bad Request"
-                    alertMessage = "The server returned a bad request. Please confirm the URL is correct."
-                }
-                catch RecipeManagerError.unauthorized {
-                    isShowingAlert.toggle()
-                    alertTitle = "Unauthorized"
-                    alertMessage = "You are unauthorized to access this resource."
-                }
-                catch RecipeManagerError.forbidden {
-                    isShowingAlert.toggle()
-                    alertTitle = "Forbidden"
-                    alertMessage = "You are forbidden to access this resource."
-                }
-                catch RecipeManagerError.notFound {
-                    isShowingAlert.toggle()
-                    alertTitle = "Server Not Found"
-                    alertMessage = "The server could not be found. Please confirm the URL is correct."
-                }
-                catch RecipeManagerError.requestTimeout {
-                    isShowingAlert.toggle()
-                    alertTitle = "Request Timeout"
-                    alertMessage = "The server timed out waiting for a response. Please check your internet connection, confirm the URL is correct, and try again."
-                }
-                catch RecipeManagerError.internalServerError {
-                    isShowingAlert.toggle()
-                    alertTitle = "Internal Server Error"
-                    alertMessage = "The server encountered an internal error. Please try again later."
-                }
-                catch RecipeManagerError.badGateway {
-                    isShowingAlert.toggle()
-                    alertTitle = "Bad Gateway"
-                    alertMessage = "The server received a bad gateway response. Please try again later."
-                }
-                catch RecipeManagerError.serviceUnavailable {
-                    isShowingAlert.toggle()
-                    alertTitle = "Service Unavailable"
-                    alertMessage = "The server is currently unavailable. Please try again later."
-                }
-                catch {
-                    isShowingAlert.toggle()
-                    alertTitle = "Unknown Error"
-                    alertMessage = "An unknown error has occured. Please try again later."
+        }
+            // Refreshes the recipe list with new data
+            .refreshable {
+                await refreshRecipes()
+            }
+            // Fetches data every time the view appears
+            .onAppear {
+                Task {
+                    await loadRecipesFromFile()
                 }
             }
-            .alert(isPresented: $isShowingAlert) {
-                Alert(title: Text(alertTitle), message: Text(alertMessage))
-            }
+}
+    
+    // Function to load recipes from file
+    private func loadRecipesFromFile() async {
+        if let loadedRecipes = recipeManager.loadRecipesFromFile() {
+            recipes = loadedRecipes
+        } else {
+            print("Failed to load recipes from file.")
         }
+    }
+    
+    // Function to refresh recipes from file or API
+    private func refreshRecipes() async {
+        do {
+            recipes = try await recipeManager.getRecipes()
         }
-        
+        catch {
+            print("Error refreshing recipes: \(error.localizedDescription)")
+        }
+    }
 }
 
 #Preview {
