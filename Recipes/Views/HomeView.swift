@@ -12,7 +12,6 @@ struct HomeView: View {
     // Recipes and recipe manager
     @State var recipes: [Recipe] = []
     let recipeManager = RecipeManager()
-    let imageManager = ImageManager()
     
     // Create a group of cuisine with the name of the cuisine and the recipes with the cuisine name
     var cuisines: [String : [Recipe]] {
@@ -37,16 +36,6 @@ struct HomeView: View {
                     Section(header: Text(cuisine).textCase(.none).font(.headline)) {
                         ForEach(cuisines[cuisine] ?? []) { recipe in
                             HStack {
-                                if let url = recipe.photoUrlSmall {
-                                    if let cachedImage = imageManager.shared.loadImage(for: url) {
-                                        Image(uiImage: cachedImage)
-                                            .resizable()
-                                            .scaledToFit()
-                                            .frame(width: 70, height: 70)
-                                            .clipShape(Circle())
-                                    }
-                                }
-                                else {
                                     AsyncImage(url: recipe.photoUrlSmall) { phase in
                                         switch phase {
                                             // Getting image
@@ -68,7 +57,6 @@ struct HomeView: View {
                                         @unknown default:
                                             EmptyView()
                                         }
-                                    }
                                 }
                                 VStack (alignment: .leading) {
                                     Text(recipe.name)
