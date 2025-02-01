@@ -9,12 +9,12 @@ import Foundation
 
 // An array object of recipes
 struct RecipeResponse: Codable {
-    let recipes: [Recipe]
+    var recipes: [Recipe]
 }
 
 struct Recipe: Codable, Hashable, Identifiable {
     let cuisine: String
-    let name: String
+    var name: String
     let photoUrlLarge: URL?
     let photoUrlSmall: URL?
     let sourceUrl: String?
