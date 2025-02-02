@@ -26,42 +26,37 @@ struct HomeView: View {
     @State private var alertTitle: String = ""
     @State private var alertMessage: String = ""
     
-    @State private var isLoading: Bool = false
     
     @MainActor
     var body: some View {
         NavigationStack {
             List {
+                // Catagorized by cuisine type
                 ForEach(cuisines.keys.sorted(), id: \.self) { cuisine in
+                    // Cuisine Header in alphabetical order
                     Section(header: Text(cuisine).textCase(.none).font(.headline)) {
+                        // Recipe List
                         ForEach(cuisines[cuisine] ?? []) { recipe in
                             HStack {
-                                    AsyncImage(url: recipe.photoUrlSmall) { phase in
-                                        switch phase {
-                                            // Getting image
-                                        case .empty:
-                                            ProgressView()
-                                                .frame(width: 70, height: 70)
-                                            // Image retrieved
-                                        case .success(let image):
-                                            image.resizable()
-                                                .scaledToFit()
-                                                .frame(width: 70, height: 70)
-                                                .clipShape(Circle())
-                                            // Image failed
-                                        case .failure:
-                                            Image(systemName: "photo")
-                                                .resizable()
-                                                .scaledToFit()
-                                                .frame(width: 50, height: 50)
-                                        @unknown default:
-                                            EmptyView()
-                                        }
+                                // Image
+                                AsyncCachedImage(url: recipe.photoUrlSmall) { image in
+                                    image
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 70, height: 70)
+                                        .clipShape(Circle())
+                                    
+                                } placeholder: {
+                                    ProgressView()
+                                        .frame(width: 70, height: 70)
                                 }
+                                
+                                // Recipe Name
                                 VStack (alignment: .leading) {
                                     Text(recipe.name)
                                         .font(.headline)
                                     
+                                    // View Recipe via YouTube link
                                     HStack {
                                         Image(systemName: "play.circle.fill")
                                             .resizable()
@@ -82,12 +77,15 @@ struct HomeView: View {
             .refreshable {
                 await refreshRecipes()
             }
-            // Fetches data every time the view appears
+        
+            // Gets data from file every time the view appears
             .onAppear {
                 Task {
-                    await loadRecipesFromFile()
-                }
+                    do {
+                        await loadRecipesFromFile()
             }
+        }
+    }
 }
     
     // Function to load recipes from file
