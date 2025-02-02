@@ -7,7 +7,7 @@
 
 import Foundation
 
-//
+
 enum RecipeManagerNetworkError: Error {
     case invalidURL
     case invalidData
@@ -27,21 +27,25 @@ final class RecipeManager {
     // Create file
     private let fileName = "recipes.json"
     
+    // Create a session constant for testing purposes
+    private let session: URLSession
+    
+    init(session: URLSession = .shared) {
+        self.session = session
+    }
+    
     // Function to get recipes from the URL
-    func getRecipes() async throws -> [Recipe] {
-        // Get endpoint
-        let endpoint = "https://d3jbb8n5wk0qxi.cloudfront.net/recipes.json"
+    func getRecipes(from endPoint: String = "https://d3jbb8n5wk0qxi.cloudfront.net/recipes.json", isUsingCache: Bool = true) async throws -> [Recipe] {
         
         // Load recipes from file
-        if let loadedRecipes = loadRecipesFromFile(), !loadedRecipes.isEmpty {
-            print("Loaded from file instead of API")
+        if isUsingCache, let loadedRecipes = loadRecipesFromFile(), !loadedRecipes.isEmpty {
             return loadedRecipes
         } else {
             print("No file found, loading from API")
         }
         
         // Convert the endpoint into a URL and handle errors
-        guard let url = URL(string: endpoint) else {
+        guard let url = URL(string: endPoint) else {
             throw RecipeManagerNetworkError.invalidURL
         }
         
@@ -61,13 +65,17 @@ final class RecipeManager {
                 let decoder = JSONDecoder()
                 var recipeResponse = try decoder.decode(RecipeResponse.self, from: data)
                 
-                print("✅ Successfully decoded \(recipeResponse.recipes.count) recipes from API")
+                // Manually fix JSON encoding
                 for i in 0..<recipeResponse.recipes.count {
                      recipeResponse.recipes[i].name = recipeResponse.recipes[i].name
                     .replacingOccurrences(of: "Å›", with: "ś")
                     .replacingOccurrences(of: "Ã©", with: "é")
                 }
-                saveRecipesToFile(data)
+                
+                // If testing, do not save
+                if isUsingCache {
+                    saveRecipesToFile(data)
+                }
                 
                 return recipeResponse.recipes
             }
@@ -101,11 +109,13 @@ final class RecipeManager {
     private func getFileURL() -> URL {
         // Create a new instance of fileManager
         let fileManager = FileManager.default
+        
         // Get the file URLs from the user documents directory
         let fileURLs = fileManager.urls(for: .documentDirectory, in: .userDomainMask)
+        
         // Return the first URL
         let fileURL = fileURLs[0].appendingPathComponent(fileName)
-        print("📁 File Path: \(fileURL.path) \n")
+
         return fileURL
     }
     
@@ -113,17 +123,12 @@ final class RecipeManager {
     private func saveRecipesToFile(_ data: Data) {
         let fileURL = getFileURL()
         
-        print("📂 Attempting to save data to:", fileURL.path)
         // Save data to file
         do {
             try data.write(to: fileURL, options: .atomic)
-            if let jsonString = String(data: data, encoding: .utf8) {
-                print("✅ Data saved to file: \n\(jsonString)\n")
-            }
-            print("Save: ✅ Data has been saved to file")
         }
         catch {
-            print(" Save: ❌ Unexpected error: \(error).")
+            print("Unexpected error: \(error).")
         }
     }
     
@@ -133,42 +138,32 @@ final class RecipeManager {
         
         // Check if the file exists
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            print("Load: ❌ File does not exist")
             return nil
         }
         
         // Load data from file
         do {
             let data = try Data(contentsOf: fileURL)
-            print("📂 Found file at: \(fileURL.path), size: \(data.count) bytes")
             
             // If file exists but is empty, return nil
             guard !data.isEmpty else {
-                print("⚠️ File is empty, ignoring cached data")
                 return nil
             }
             
-            // Print raw JSON for debugging
-            if let jsonString = String(data: data, encoding: .utf8) {
-                print("📂 Loaded JSON from file:\n\(jsonString)")
-            }
-            
             let decoder = JSONDecoder()
-            var recipeResponse = try decoder.decode(
-                RecipeResponse.self,
-                from: data
-            )
+            var recipeResponse = try decoder.decode(RecipeResponse.self, from: data)
             
-            print("Load: ✅ Data loaded successfully from file")
+            // Manually fix JSON encoding error
             for i in 0..<recipeResponse.recipes.count {
                  recipeResponse.recipes[i].name = recipeResponse.recipes[i].name
                 .replacingOccurrences(of: "Å›", with: "ś")
                 .replacingOccurrences(of: "Ã©", with: "é")
             }
+            
             return recipeResponse.recipes
         }
         catch {
-            print("Load: ❌ Error loading from file: \(error.localizedDescription).")
+            print("Error loading from file: \(error.localizedDescription).")
             return nil
         }
     }
@@ -178,6 +173,7 @@ final class RecipeManager {
         let fileManager = FileManager.default
         let fileURL = getFileURL()
         
+        // Check if the file exists and remove it
         do {
             if fileManager.fileExists(atPath: fileURL.path) {
                 try fileManager.removeItem(at: fileURL)
