@@ -23,4 +23,3 @@ I believe the weakest part is the UI. As stated in my **trade-offs**, I wanted t
 
 ### Additional Information
 This has been a tremendous learing experience for me, and I will continue to improve this project even after submission to showcase my skills and learning progress!
-
