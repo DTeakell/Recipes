@@ -9,15 +9,22 @@ import Foundation
 import SwiftUI
 
 // To cache AsyncImage to disk
+// Both ImageView and PlaceholderView are generircs that conform to the View protocol
 struct AsyncCachedImage<ImageView: View, PlaceholderView: View>: View {
     
+    // The image URL
     var url: URL?
+    
+    // Takes an image and returns a custom ImageView
     @ViewBuilder var content: (Image) -> ImageView
+    
+    // Returns a placeholder while the image is loading
     @ViewBuilder var placeholder: () -> PlaceholderView
     
     // Downloaded Image
     @State var image: UIImage? = nil
     
+    // Marked as @escaping to be able to use at a future point
     init(url: URL?,
          @ViewBuilder content: @escaping (Image) -> ImageView,
          @ViewBuilder placeholder: @escaping () -> PlaceholderView
@@ -29,15 +36,15 @@ struct AsyncCachedImage<ImageView: View, PlaceholderView: View>: View {
     
     
     var body: some View {
-        VStack {
-            if let uiImage = image {
-                content(Image(uiImage: uiImage))
-            } else {
+        
+        if let uiImage = image {
+            content(Image(uiImage: uiImage))
+        }
+        else {
                 placeholder()
                     .onAppear {
                         Task {
-                            image = await downloadPhoto()
-                    }
+                            image = await downloadImage()
                 }
             }
         }
@@ -45,7 +52,7 @@ struct AsyncCachedImage<ImageView: View, PlaceholderView: View>: View {
     
     
     // Function to download image if the image has not been cached
-    private func downloadPhoto() async -> UIImage? {
+    private func downloadImage() async -> UIImage? {
         do {
             // Check if the URL is a URL
             guard let url else {
@@ -63,6 +70,7 @@ struct AsyncCachedImage<ImageView: View, PlaceholderView: View>: View {
                 // Save returned image data
                 URLCache.shared.storeCachedResponse(.init(response: response, data: data), for: .init(url: url))
                 
+                // Set the image as a UIImage using the data that was recieved
                 guard let image = UIImage(data: data) else {
                     return nil
                 }
